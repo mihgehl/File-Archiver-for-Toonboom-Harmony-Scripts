@@ -37,7 +37,6 @@ function SevenZip(
 
   this.command = [];
   this.process = new QProcess();
-  MessageLog.trace(this.version);
 }
 
 Object.defineProperty(SevenZip.prototype, "version", {
@@ -46,11 +45,16 @@ Object.defineProperty(SevenZip.prototype, "version", {
       if (typeof SevenZip.__proto__.version === "undefined") {
         this.process.start(this.binPath);
         this.process.waitForReadyRead(10000);
-        var ver = new QTextStream(this.process.readAllStandardOutput())
+        var regex = /(7-Zip (\d+\.\d+))|(7-Zip \(z\) (\d+\.\d+)) /;
+        var match = new QTextStream(this.process.readAllStandardOutput())
           .readAll()
-          .match(/7-Zip \(z\) (\d+\.\d+)/)[1];
-        SevenZip.__proto__.version = ver;
-        return ver;
+          .match(regex);
+
+        if (match) {
+          var sevenZipVersion = parseFloat(match[2] || match[4]);
+        }
+        SevenZip.__proto__.version = sevenZipVersion;
+        return sevenZipVersion;
       } else {
         return SevenZip.__proto__.version;
       }
@@ -187,19 +191,22 @@ SevenZip.prototype.unzipAsync = function () {
       "-y", // Overwrites files and folders by default. TODO:
       this.source,
       "-o" + this.destination,
-      "-bsp1", // Macos and tbh22 needs -bsp1 to show progress | Needs testing on windows
-      "-aoa",
-      "-r",
+      // "-bsp1", // Macos and tbh22 needs -bsp1 to show progress | Needs testing on windows
+      // "-aoa",
+      // "-r",
     ];
 
     if (this.filter !== undefined) {
       this.command.push(this.filter);
     }
+    if (this.version >= 15.09) {
+      this.command.push("-bsp1");
+    }
 
     this.process.start(this.binPath, this.command);
 
     // Comment this section for receiving debug messages from the process
-    if (typeof this.progressCallback !== "undefined") {
+    if (typeof this.progressCallback !== "undefined" && this.version >= 15.09) {
       this.process.readyReadStandardOutput.connect(this, function () {
         var output7z = new QTextStream(this.process.readAllStandardOutput())
           .readAll()
@@ -225,8 +232,12 @@ SevenZip.prototype.unzipAsync = function () {
     // // This requires progressCallback section to be commented out
     // if (this.debug) {
     //   this.process.readyReadStandardOutput.connect(this, function () {
-    //     var currentStdOut = new QTextStream(this.process.readAllStandardOutput()).readAll()
-    //     var currentErrOut = new QTextStream(this.process.readAllStandardError()).readAll()
+    //     var currentStdOut = new QTextStream(
+    //       this.process.readAllStandardOutput()
+    //     ).readAll();
+    //     var currentErrOut = new QTextStream(
+    //       this.process.readAllStandardError()
+    //     ).readAll();
     //     this.log(currentStdOut);
     //     this.log(currentErrOut);
     //   });
