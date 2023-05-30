@@ -43,10 +43,13 @@ Object.defineProperty(SevenZip.prototype, "version", {
   get: function () {
     try {
       if (typeof SevenZip.__proto__.version === "undefined") {
-        this.process.start(this.binPath);
-        this.process.waitForReadyRead(10000);
+        this.versionCheckProcess = new QProcess();
+        this.versionCheckProcess.start(this.binPath);
+        this.versionCheckProcess.waitForReadyRead(10000);
         var regex = /(7-Zip (\d+\.\d+))|(7-Zip \(z\) (\d+\.\d+)) /;
-        var match = new QTextStream(this.process.readAllStandardOutput())
+        var match = new QTextStream(
+          this.versionCheckProcess.readAllStandardOutput()
+        )
           .readAll()
           .match(regex);
 
@@ -194,11 +197,13 @@ SevenZip.prototype.unzipAsync = function () {
       // "-bsp1", // Macos and tbh22 needs -bsp1 to show progress | Needs testing on windows
       // "-aoa",
       // "-r",
+      // ">",
+      // this.destination + "/log.txt",
     ];
 
-    if (this.filter !== undefined) {
-      this.command.push(this.filter);
-    }
+    // if (this.filter !== undefined) {
+    //   this.command.push(this.filter);
+    // }
     if (this.version >= 15.09) {
       this.command.push("-bsp1");
     }
