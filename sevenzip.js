@@ -37,7 +37,28 @@ function SevenZip(
 
   this.command = [];
   this.process = new QProcess();
+  MessageLog.trace(this.version);
 }
+
+Object.defineProperty(SevenZip.prototype, "version", {
+  get: function () {
+    try {
+      if (typeof SevenZip.__proto__.version === "undefined") {
+        this.process.start(this.binPath);
+        this.process.waitForReadyRead(10000);
+        var ver = new QTextStream(this.process.readAllStandardOutput())
+          .readAll()
+          .match(/7-Zip \(z\) (\d+\.\d+)/)[1];
+        SevenZip.__proto__.version = ver;
+        return ver;
+      } else {
+        return SevenZip.__proto__.version;
+      }
+    } catch (error) {
+      MessageLog.trace(error);
+    }
+  },
+});
 
 Object.defineProperty(SevenZip.prototype, "binPath", {
   get: function () {
@@ -163,12 +184,12 @@ SevenZip.prototype.unzipAsync = function () {
     // Macos seems to have an older version of 7za, so the output folder command -o shouldn't have an space before the path
     this.command = [
       "x",
-      "-y", // Overwrites files and folders by default. TODO: 
+      "-y", // Overwrites files and folders by default. TODO:
       this.source,
       "-o" + this.destination,
       "-bsp1", // Macos and tbh22 needs -bsp1 to show progress | Needs testing on windows
       "-aoa",
-      "-r"
+      "-r",
     ];
 
     if (this.filter !== undefined) {
@@ -176,7 +197,7 @@ SevenZip.prototype.unzipAsync = function () {
     }
 
     this.process.start(this.binPath, this.command);
-    
+
     // Comment this section for receiving debug messages from the process
     if (typeof this.progressCallback !== "undefined") {
       this.process.readyReadStandardOutput.connect(this, function () {
