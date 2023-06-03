@@ -125,14 +125,15 @@ SevenZip.prototype.zipAsync = function () {
 
     // Trying another method of calculating progress
     this.command = [
-      "/K",
-      "(",
-      this.binPath,
+      'Start-Transcript -Path "' + this.destination + '.cacaca.log"',
+      ";",
+      "&",
+      '"' + this.binPath + '"',
       "a",
       // "caca.zip",
       // "-o" +
-      this.destination,
-      this.source + "/*", // /* is for avoding 7zip to zip the outer folder, TODO: needs to be tested with files
+      '"' + this.destination + '"',
+      '"' + this.source + "/*" + '"', // /* is for avoding 7zip to zip the outer folder, TODO: needs to be tested with files
       // "-so",
       // "-bd",
       // "&",
@@ -147,12 +148,13 @@ SevenZip.prototype.zipAsync = function () {
     }
 
     // this.command.push(">", this.destination + "caca.log", "2>&1");
-    this.command.push(")", ">", this.destination + "caca.log", "2>&1");
-    this.command.push("&", "exit");
+    // this.command.push(")", ">", this.destination + "caca.log", "2>&1");
+    // this.command.push(";", "exit");
 
     var sourceSize = sizeCalculator(this.source);
     var processedSize = 0;
     var currentPercentage = 0;
+    MessageLog.trace(this.command);
     MessageLog.trace("Source Size > " + sourceSize);
 
     // MessageLog.trace(this.binPath);
@@ -286,7 +288,7 @@ SevenZip.prototype.zipAsync = function () {
       });
     }
 
-    this.process.start("cmd.exe", this.command);
+    this.process.start("powershell.exe", this.command);
     // this.process.start(this.binPath, this.command);
   } catch (error) {
     this.log(error);
