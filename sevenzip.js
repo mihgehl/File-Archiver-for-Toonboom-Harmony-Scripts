@@ -116,126 +116,45 @@ Object.defineProperty(SevenZip.prototype, "binPath", {
   },
 });
 
+var sizeCalculator = function (sourcePath) {
+  totalSize = 0;
+  sourceInfo = new QFileInfo(sourcePath);
+
+  if (sourceInfo.isFile()) {
+    totalSize = sourceInfo.size();
+  } else if (sourceInfo.isDir()) {
+    var fileInfoList = new QDir(sourcePath).entryInfoList(
+      QDir.Filters(QDir.Files | QDir.Dirs | QDir.NoDotAndDotDot)
+    );
+    for (var entry in fileInfoList) {
+      totalSize += sizeCalculator(fileInfoList[entry].filePath());
+    }
+  }
+  return totalSize;
+};
+
 SevenZip.prototype.zipAsync = function () {
   try {
     this.command = [
       "a",
-      // "caca.zip",
-      // "-o" +
-      '"' + this.destination + '"',
-      '"' + this.source + "/*" + '"', // /* is for avoding 7zip to zip the outer folder, TODO: needs to be tested with files
-      // "-so",
-      // "-bd",
-      // "&",
-      // "exit",
+      this.destination,
+      this.source + "/*", // /* is for avoding 7zip to zip the outer folder, TODO: needs to be tested with files
+      "-bsp1", // Requires 7zip 15.09 or higher
     ];
 
     if (this.filter !== undefined) {
       this.command.push("-xr!" + this.filter);
     }
-    if (this.version >= 15.09) {
-      this.command.push("-bsp1");
-    }
 
-    // this.command.push(">", this.destination + "caca.log", "2>&1");
-    // this.command.push(")", ">", this.destination + "caca.log", "2>&1");
-    // this.command.push(";", "exit");
-
-    var sourceSize = sizeCalculator(this.source);
-    var processedSize = 0;
-    var currentPercentage = 0;
-    MessageLog.trace(this.command);
-    MessageLog.trace("Source Size > " + sourceSize);
-
-    // MessageLog.trace(this.binPath);
-    // MessageLog.trace(this.command);
-
-    // this.process.setProcessChannelMode(3);
-
-    // // Comment this section for receiving debug messages from the process
-    // if (typeof this.progressCallback !== "undefined") {
-    //   this.process.readyReadStandardOutput.connect(this, function () {
-    //     try {
-    //       MessageLog.trace("it happened");
-    //       // var output7z = "";
-    //       var output7z = new QByteArray(this.process.readAllStandardOutput());
-    //       output7z = new QTextStream(output7z).readAll();
-    //       // .data()
-    //       // .toString();
-    //       //     .match(/\d+(?:\.\d+)?%/);
-    //       this.progressCallback.call(this.parentContext, output7z); // Passes the zipping progress as a command to a callback (progressCallback) passed on by the user as a argument
-    //     } catch (error) {
-    //       MessageLog.trace(error);
-    //     }
-    //   });
-    // }
-
-    // this.process.errorOccurred.connect(this, function (error) {
-    //   MessageLog.trace("error");
-    //   MessageLog.trace(error);
-    // });
-
-    // var stdOutput = new QByteArray(this.process.readAllStandardOutput())
-    //   .data()
-    //   .toString();
-    // processedSize += stdOutput.length;
-    // currentPercentage = Math.floor((processedSize * 100) / sourceSize);
-
-    // var megaLog =
-    //   "Current Percentage > " +
-    //   currentPercentage +
-    //   "\n" +
-    //   "Processed Size > " +
-    //   processedSize +
-    //   "\n" +
-    //   "Current Output > " +
-    //   stdOutput;
-
-    // this.progressCallback.call(this.parentContext, megaLog);
-
-    // this.process.readyReadStandardOutput.connect(this, function () {
-    //   var output7z = new QTextStream(this.process.readAllStandardOutput())
-    //     .readAll()
-    //     .match(/\d+(?:\.\d+)?%/);
-    //   this.progressCallback.call(this.parentContext, parseInt(output7z)); // Passes the zipping progress as a command to a callback (progressCallback) passed on by the user as a argument
-    // });
-    // }
-
-    // var output7z =
-    //   new QTextStream(this.process.readAllStandardOutput()).readAll() +
-    //   "\n" +
-    //   new QTextStream(this.process.readAllStandardError()).readAll();
-
-    // MessageLog.trace(output7z);
-    // this.process.setReadChannel(QProcess.MergedChannels);
-    // this.process.setReadChannel(QProcess.ForwardedChannels);
-
-    // var timer = new QTimer();
-    // timer.timeout.connect(this, function () {
-    //   try {
-    //     // MessageLog.trace(this.process.readChannel());
-    //     // MessageLog.trace(this.process.arguments());
-    //     // MessageLog.trace(this.process.readAllStandardOutput());
-    //     MessageLog.trace(
-    //       new QTextStream(this.process.readAllStandardOutput()).readAll()
-    //     );
-    //     MessageLog.trace(
-    //       new QTextStream(this.process.readAllStandardError()).readAll()
-    //     );
-    //     // MessageLog.trace(this.process.readAllStandardError());
-    //     // MessageLog.trace(new QTextStream(this.process.readAll()).readAll(100));
-    //     // var currentStdOut = new QTextStream(
-    //     //   this.process.readAllStandardOutput()
-    //     // ).readAll();
-    //     // this.log(currentStdOut);
-    //     // var currentErrOut = new QTextStream(
-    //     //   this.process.readAllStandardError()
-    //     // ).readAll();
-    //     // this.log(currentErrOut);
-    //   } catch (error) {
-    //     MessageLog.trace(error);
-    //   }
-    // });
+    this.process.readyReadStandardOutput.connect(this, function () {
+      var output7z = new QTextStream(this.process.readAllStandardOutput())
+        .readAll()
+        .match(/\d+(?:\.\d+)?%/);
+      if (isNaN(output7z)) {
+        // Passes the zipping progress as a command to a callback (progressCallback) passed on by the user as a argument
+        this.progressCallback.call(this.parentContext, parseInt(output7z));
+      }
+    });
 
     // Call a function from outside when the process is started
     if (typeof this.processStartCallback !== "undefined") {
@@ -244,48 +163,33 @@ SevenZip.prototype.zipAsync = function () {
       });
     }
 
-    if (this.debug) {
-      this.process.readyReadStandardOutput.connect(this, function () {
-        try {
-          this.log(
-            new QTextStream(this.process.readAllStandardOutput()).readAll()
-          );
-          this.log(
-            new QTextStream(this.process.readAllStandardError()).readAll()
-          );
-        } catch (error) {
-          this.log(error);
-        }
-      });
-    }
-
+    // Call a function from outside when the process ends
     if (typeof this.processEndCallback !== "undefined") {
       this.process["finished(int)"].connect(this, function () {
         this.processEndCallback.call(this.parentContext);
       });
     }
 
-    // This requires progressCallback section to be commented out
-    if (this.debug) {
-      // this.process.setStandardOutputFile(this.destination + ".log");
-      // this.process.setStandardErrorFile(this.destination + ".error.log");
-      this.process.readyReadStandardOutput.connect(this, function () {
-        var currentStdOut = new QTextStream(
-          this.process.readAllStandardOutput()
-        ).readAll();
-        this.log(currentStdOut);
-      });
-      // this.process.setStandardErrorFile(this.destination + ".error.log");
-      this.process.readyReadStandardError.connect(this, function () {
-        var currentErrOut = new QTextStream(
-          this.process.readAllStandardError()
-        ).readAll();
-        this.log(currentErrOut);
-      });
-    }
+    // // This requires progressCallback section to be commented out
+    // if (this.debug) {
+    //   this.process.setStandardOutputFile(this.destination + ".log");
+    //   this.process.setStandardErrorFile(this.destination + ".error.log");
+    //   this.process.readyReadStandardOutput.connect(this, function () {
+    //     var currentStdOut = new QTextStream(
+    //       this.process.readAllStandardOutput()
+    //     ).readAll();
+    //     this.log(currentStdOut);
+    //   });
+    //   // this.process.setStandardErrorFile(this.destination + ".error.log");
+    //   this.process.readyReadStandardError.connect(this, function () {
+    //     var currentErrOut = new QTextStream(
+    //       this.process.readAllStandardError()
+    //     ).readAll();
+    //     this.log(currentErrOut);
+    //   });
+    // }
 
-    this.process.start("powershell.exe", this.command);
-    // this.process.start(this.binPath, this.command);
+    this.process.start(this.binPath, this.command);
   } catch (error) {
     this.log(error);
   }
