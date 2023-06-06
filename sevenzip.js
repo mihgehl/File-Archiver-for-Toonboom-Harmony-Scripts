@@ -6,7 +6,15 @@
  */
 
 /**
- *
+ * @constructor
+ * @param { parent } parentContext
+ * @param { string } source Source path to be unzipped or compressed
+ * @param { string } destination Destination path where the source will be unzipped or compressed
+ * @param { processStartCallback } processStartCallback Optional: Function that gets called when async zipping or unzipping process is started
+ * @param { progressCallback } progressCallback Optional: Function that gets called when async zipping or unzipping progress is updated
+ * @param { processEndCallback } processEndCallback Optional: Function that gets called when async zipping or unzipping process ends
+ * @param { string } filter Optional: For filtering out files or folders
+ * @param { bool } debug Optional: Print debugging messages to MessageLog
  */
 function SevenZip(
   parentContext,
@@ -37,10 +45,30 @@ function SevenZip(
 
   this.command = [];
   this.process = new QProcess();
-  MessageLog.trace(this.binPath);
 }
 
+/**
+ * Function that gets called when async zipping or unzipping process is started
+ * @callback processStartCallback
+ */
+/**
+ * Function that gets called when async zipping or unzipping progress is updated
+ * @callback progressCallback
+ * @param {int} progressValue Current progress percentage
+ */
+/**
+ * Function that gets called when async zipping or unzipping process ends
+ * @callback processStartCallback
+ */
+
+/**
+ * Get current 7zip version
+ */
 Object.defineProperty(SevenZip.prototype, "version", {
+  /**
+   * Returns current 7zip version
+   * @returns { float } Current 7zip Version
+   */
   get: function () {
     try {
       var getSevenZipVersion = function (binPath) {
@@ -72,7 +100,14 @@ Object.defineProperty(SevenZip.prototype, "version", {
   },
 });
 
+/**
+ * Get 7zip binary path
+ */
 Object.defineProperty(SevenZip.prototype, "binPath", {
+  /**
+   * Returns current 7zip binary path
+   * @returns { String } Current 7zip binary path
+   */
   get: function () {
     if (typeof SevenZip.__proto__.binPath === "undefined") {
       if (about.isMacArch() || about.isLinuxArch()) {
@@ -133,6 +168,9 @@ var sizeCalculator = function (sourcePath) {
   return totalSize;
 };
 
+/**
+ * Compresses a file or directory without blocking the UI
+ */
 SevenZip.prototype.zipAsync = function () {
   try {
     this.command = [
@@ -166,7 +204,10 @@ SevenZip.prototype.zipAsync = function () {
     // Call a function from outside when the process ends
     if (typeof this.processEndCallback !== "undefined") {
       this.process["finished(int)"].connect(this, function () {
-        this.processEndCallback.call(this.parentContext);
+        this.processEndCallback.call(
+          this.parentContext,
+          new QFile(this.destination).exists()
+        );
       });
     }
 
@@ -195,6 +236,9 @@ SevenZip.prototype.zipAsync = function () {
   }
 };
 
+/**
+ * Compresses a file or directory blocking the UI
+ */
 SevenZip.prototype.zip = function () {
   try {
     this.command = [
@@ -229,6 +273,9 @@ SevenZip.prototype.zip = function () {
   }
 };
 
+/**
+ * Decompresses a file without blocking the UI
+ */
 SevenZip.prototype.unzipAsync = function () {
   try {
     // Macos seems to have an older version of 7za, so the output folder command -o shouldn't have an space before the path
@@ -338,7 +385,7 @@ Connection.prototype.download = function (url, destinationPath) {
     //   new QTextStream(this.process.readAllStandardError()).readAll()
     // );
 
-    if (file.exists) {
+    if (file.exists()) {
       return file;
     } else {
       throw new Error("File download Failed");
