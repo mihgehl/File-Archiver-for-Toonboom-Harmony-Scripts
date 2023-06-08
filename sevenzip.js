@@ -180,7 +180,7 @@ SevenZip.prototype.zipAsync = function () {
       "-bsp1", // Requires 7zip 15.09 or higher
     ];
 
-    if (this.filter !== undefined) {
+    if (this.filter !== undefined && this.filter !== "") {
       this.command.push("-xr!" + this.filter);
     }
 
@@ -288,13 +288,10 @@ SevenZip.prototype.unzipAsync = function () {
       // "-aoa",
       // "-r",
     ];
-    s;
 
-    if (this.filter !== undefined) {
+    if (this.filter !== undefined && this.filter !== "") {
       this.command.push(this.filter);
     }
-
-    this.process.start(this.binPath, this.command);
 
     // Comment this section for receiving debug messages from the process
     if (typeof this.progressCallback !== "undefined") {
@@ -329,13 +326,17 @@ SevenZip.prototype.unzipAsync = function () {
     //     var currentStdOut = new QTextStream(
     //       this.process.readAllStandardOutput()
     //     ).readAll();
+    //     this.log(currentStdOut);
+    //   });
+    //   this.process.readyReadStandardError.connect(this, function () {
     //     var currentErrOut = new QTextStream(
     //       this.process.readAllStandardError()
     //     ).readAll();
-    //     this.log(currentStdOut);
     //     this.log(currentErrOut);
     //   });
     // }
+
+    this.process.start(this.binPath, this.command);
   } catch (error) {
     this.log(error);
   }
