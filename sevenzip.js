@@ -72,7 +72,6 @@ Object.defineProperty(SevenZip.prototype, "version", {
   get: function () {
     try {
       var getSevenZipVersion = function (binPath) {
-        MessageLog.trace("Bin Path > " + binPath);
         var versionCheckProcess = new QProcess();
         versionCheckProcess.start(binPath);
         versionCheckProcess.waitForFinished(10000);
@@ -125,19 +124,34 @@ Object.defineProperty(SevenZip.prototype, "binPath", {
         }
       } else if (about.isWindowsArch()) {
         var sevenzipbin = new QFile(
-          specialFolders.userScripts + "/packages/7zip/7zr.exe"
+          specialFolders.userScripts + "/packages/7zip/7za.exe"
         );
-        MessageLog.trace(sevenzipbin.exists());
+
         if (!sevenzipbin.exists()) {
-          this.connection = new Connection();
-          var sevenzipbin = this.connection.download(
-            "https://www.7-zip.org/a/7zr.exe",
-            sevenzipbin.fileName()
-          );
-          // if (sevenzipbin.exists) {
-          //   SevenZip.__proto__.binPath = sevenzipbin.fileName();
-          //   return sevenzipbin.fileName();
-          // }
+          var dirPath = new QFileInfo(sevenzipbin.fileName()).dir().path();
+
+          // Clean 7zip folder
+          new QDir(dirPath).removeRecursively();
+          new QDir(dirPath).mkpath(dirPath);
+
+          var download7zProcess = new QProcess();
+          var download7zCommand = [
+            "/K",
+            "powershell (New-Object Net.WebClient).DownloadFile('https://www.7-zip.org/a/7zr.exe', '7zr.exe') & " +
+              "powershell (New-Object Net.WebClient).DownloadFile('https://www.7-zip.org/a/7z2300-extra.7z', '7z-extra.7z') & " +
+              "7zr.exe -y e 7z-extra.7z x64/7za.exe & " +
+              "if exist 7zr.exe del 7zr.exe & " +
+              "if exist 7z-extra.7z del 7z-extra.7z &" +
+              "exit",
+          ];
+
+          download7zProcess.setWorkingDirectory(dirPath);
+          download7zProcess.start("cmd.exe", download7zCommand);
+          download7zProcess.waitForFinished(50000);
+          if (sevenzipbin.exists()) {
+            SevenZip.__proto__.binPath = sevenzipbin.fileName();
+            return sevenzipbin.fileName();
+          }
         } else {
           SevenZip.__proto__.binPath = sevenzipbin.fileName();
           return sevenzipbin.fileName();
@@ -294,7 +308,7 @@ SevenZip.prototype.unzipAsync = function () {
     }
 
     // Comment this section for receiving debug messages from the process
-    if (typeof this.progressCallback !== "undefined") {
+    if (!this.debug && typeof this.progressCallback !== "undefined") {
       this.process.readyReadStandardOutput.connect(this, function () {
         var output7z = new QTextStream(this.process.readAllStandardOutput())
           .readAll()
@@ -320,21 +334,21 @@ SevenZip.prototype.unzipAsync = function () {
       });
     }
 
-    // // This requires progressCallback section to be commented out
-    // if (this.debug) {
-    //   this.process.readyReadStandardOutput.connect(this, function () {
-    //     var currentStdOut = new QTextStream(
-    //       this.process.readAllStandardOutput()
-    //     ).readAll();
-    //     this.log(currentStdOut);
-    //   });
-    //   this.process.readyReadStandardError.connect(this, function () {
-    //     var currentErrOut = new QTextStream(
-    //       this.process.readAllStandardError()
-    //     ).readAll();
-    //     this.log(currentErrOut);
-    //   });
-    // }
+    // This requires progressCallback section to be commented out
+    if (this.debug) {
+      this.process.readyReadStandardOutput.connect(this, function () {
+        var currentStdOut = new QTextStream(
+          this.process.readAllStandardOutput()
+        ).readAll();
+        this.log(currentStdOut);
+      });
+      this.process.readyReadStandardError.connect(this, function () {
+        var currentErrOut = new QTextStream(
+          this.process.readAllStandardError()
+        ).readAll();
+        this.log(currentErrOut);
+      });
+    }
 
     this.process.start(this.binPath, this.command);
   } catch (error) {
