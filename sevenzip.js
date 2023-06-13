@@ -1,8 +1,8 @@
 /**
  * @file File zipper and unzipper utility for Toonboom Harmony Scripting Interface
- * @version 23.5.30
- * @copyright mihgehl < github.com/mihgehl >
- * @author mihgehl < github.com/mihgehl >
+ * @version 23.6
+ * @copyright miwgel < github.com/miwgel >
+ * @author miwgel < github.com/miwgel >
  */
 
 /**
