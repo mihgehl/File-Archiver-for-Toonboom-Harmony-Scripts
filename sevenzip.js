@@ -1,8 +1,8 @@
 /**
  * @file File zipper and unzipper utility for Toonboom Harmony Scripting Interface
- * @version 23.6
- * @copyright miwgel < github.com/miwgel >
- * @author miwgel < github.com/miwgel >
+ * @version 23.9
+ * @copyright mihgehl < github.com/mihgehl >
+ * @author mihgehl < github.com/mihgehl >
  */
 
 /**
@@ -18,28 +18,31 @@
  */
 function SevenZip(
   parentContext,
-  source,
+  sources,
   destination,
   processStartCallback,
   progressCallback,
   processEndCallback,
+  debugCallback,
   filter,
   debug
 ) {
   if (typeof parentContext === "undefined") var parentContext = null;
-  if (typeof source === "undefined") var source = null;
+  if (typeof sources === "undefined") var sources = null;
   if (typeof destination === "undefined") var destination = null;
   if (typeof processStartCallback === "undefined") var progressCallback = null;
   if (typeof processEndCallback === "undefined") var processEndCallback = null;
+  if (typeof debugCallback === "undefined") var debugCallback = null;
   if (typeof filter === "undefined") var filter = undefined;
   if (typeof debug === "undefined") var debug = false;
 
   this.parentContext = parentContext;
-  this.source = source;
+  this.sources = sources;
   this.destination = destination;
   this.processStartCallback = processStartCallback;
   this.progressCallback = progressCallback;
   this.processEndCallback = processEndCallback;
+  this.debugCallback = debugCallback;
   this.filter = filter;
   this.debug = debug;
 
@@ -185,28 +188,34 @@ var sizeCalculator = function (sourcePath) {
 /**
  * Compresses a file or directory without blocking the UI
  */
-SevenZip.prototype.zipAsync = function () {
+SevenZip.prototype.zipAsync = function (deleteSource) {
   try {
-    this.command = [
-      "a",
-      this.destination,
-      this.source + "/*", // /* is for avoding 7zip to zip the outer folder, TODO: needs to be tested with files
-      "-bsp1", // Requires 7zip 15.09 or higher
-    ];
+    this.command = ["a", this.destination];
+
+    for (var source in this.sources) {
+      this.command.push(this.sources[source]);
+    }
+
+    this.command.push(
+      "-bsp1" // Requires 7zip 15.09 or higher
+    );
 
     if (this.filter !== undefined && this.filter !== "") {
       this.command.push("-xr!" + this.filter);
     }
 
-    this.process.readyReadStandardOutput.connect(this, function () {
-      var output7z = new QTextStream(this.process.readAllStandardOutput())
-        .readAll()
-        .match(/\d+(?:\.\d+)?%/);
-      if (isNaN(output7z)) {
-        // Passes the zipping progress as a command to a callback (progressCallback) passed on by the user as a argument
-        this.progressCallback.call(this.parentContext, parseInt(output7z));
-      }
-    });
+    // Comment this section for receiving debug messages from the process
+    if (!this.debug && typeof this.progressCallback !== "undefined") {
+      this.process.readyReadStandardOutput.connect(this, function () {
+        var output7z = new QTextStream(this.process.readAllStandardOutput())
+          .readAll()
+          .match(/\d+(?:\.\d+)?%/);
+        if (isNaN(output7z)) {
+          // Passes the zipping progress as a command to a callback (progressCallback) passed on by the user as a argument
+          this.progressCallback.call(this.parentContext, parseInt(output7z));
+        }
+      });
+    }
 
     // Call a function from outside when the process is started
     if (typeof this.processStartCallback !== "undefined") {
@@ -222,27 +231,40 @@ SevenZip.prototype.zipAsync = function () {
           this.parentContext,
           new QFile(this.destination).exists()
         );
+        if (deleteSource) {
+          for (var source in this.sources) {
+            var pathToRemove = this.sources[source];
+
+            var pathInfo = new QFileInfo(pathToRemove);
+
+            if (pathInfo.isDir()) {
+              MessageLog.trace("Removing folder: " + pathToRemove);
+              new QDir(pathToRemove).removeRecursively();
+            } else if (pathInfo.isFile()) {
+              MessageLog.trace("Removing file: " + pathToRemove);
+              new QFile(pathToRemove).remove();
+            } else {
+              throw new Error("Path not found");
+            }
+          }
+        }
       });
     }
 
-    // // This requires progressCallback section to be commented out
-    // if (this.debug) {
-    //   this.process.setStandardOutputFile(this.destination + ".log");
-    //   this.process.setStandardErrorFile(this.destination + ".error.log");
-    //   this.process.readyReadStandardOutput.connect(this, function () {
-    //     var currentStdOut = new QTextStream(
-    //       this.process.readAllStandardOutput()
-    //     ).readAll();
-    //     this.log(currentStdOut);
-    //   });
-    //   // this.process.setStandardErrorFile(this.destination + ".error.log");
-    //   this.process.readyReadStandardError.connect(this, function () {
-    //     var currentErrOut = new QTextStream(
-    //       this.process.readAllStandardError()
-    //     ).readAll();
-    //     this.log(currentErrOut);
-    //   });
-    // }
+    if (typeof this.debugCallback !== "undefined") {
+      this.process.readyReadStandardOutput.connect(this, function () {
+        var currentStdOut = new QTextStream(
+          this.process.readAllStandardOutput()
+        ).readAll();
+        this.debugCallback.call(this.parentContext, currentStdOut);
+      });
+      this.process.readyReadStandardError.connect(this, function () {
+        var currentErrOut = new QTextStream(
+          this.process.readAllStandardError()
+        ).readAll();
+        this.debugCallback.call(this.parentContext, currentErrOut);
+      });
+    }
 
     this.process.start(this.binPath, this.command);
   } catch (error) {
@@ -258,7 +280,7 @@ SevenZip.prototype.zip = function () {
     this.command = [
       "a",
       this.destination,
-      this.source + "/*", // /* is for avoding 7zip to zip the outer folder, TODO: needs to be tested with files
+      this.sources + "/*", // /* is for avoding 7zip to zip the outer folder, TODO: needs to be tested with files
       // "-xr!backups",
       "-bsp1",
       // "-bse1",
@@ -296,7 +318,7 @@ SevenZip.prototype.unzipAsync = function () {
     this.command = [
       "x",
       "-y", // Overwrites files and folders by default. TODO:
-      this.source,
+      this.sources,
       "-o" + this.destination,
       "-bsp1", // Macos and tbh22 needs -bsp1 to show progress | Needs testing on windows
       // "-aoa",
